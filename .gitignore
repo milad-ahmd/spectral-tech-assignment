@@ -13,3 +13,6 @@ coverage.out
 # Generated
 gen/
 
+*.pdf
+meterusage.csv
+
