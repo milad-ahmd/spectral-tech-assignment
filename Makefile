@@ -1,6 +1,17 @@
-.PHONY: test run-grpc run-http docker-up docker-down
+.PHONY: test fmt vet check run-grpc run-http docker-up docker-down
 
 test:
+	go test ./...
+
+fmt:
+	gofmt -w .
+
+vet:
+	go vet ./...
+
+check:
+	test -z "$$(gofmt -l .)"
+	go vet ./...
 	go test ./...
 
 run-grpc:

@@ -40,6 +40,9 @@ func main() {
 		Addr:              *addr,
 		Handler:           srv,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	ln, err := net.Listen("tcp", *addr)
