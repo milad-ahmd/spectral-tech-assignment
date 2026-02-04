@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -21,5 +22,8 @@ func TestMeterUsageService_RejectsInvalidRange(t *testing.T) {
 	_, err := svc.ListReadings(context.Background(), &t0, &t1)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
+	}
+	if !errors.Is(err, ErrInvalidTimeRange) {
+		t.Fatalf("expected ErrInvalidTimeRange, got %v", err)
 	}
 }

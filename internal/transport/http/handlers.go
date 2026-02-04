@@ -1,7 +1,9 @@
 package httpserver
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	meterusagev1 "github.com/milad/spectral/gen/go/proto/meterusage/v1"
 	"google.golang.org/grpc/codes"
@@ -57,7 +59,8 @@ func (s *Server) handleListReadings(w http.ResponseWriter, r *http.Request) {
 		req.End = timestamppb.New(*end)
 	}
 
-	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
 	resp, err := s.client.ListReadings(ctx, req)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -72,7 +75,16 @@ func (s *Server) handleListReadings(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]readingJSON, 0, len(resp.GetReadings()))
 	for _, rr := range resp.GetReadings() {
-		t := rr.GetTime().AsTime()
+		ts := rr.GetTime()
+		if ts == nil {
+			_ = writeJSON(w, http.StatusBadGateway, map[string]string{"error": "upstream returned invalid reading"})
+			return
+		}
+		if err := ts.CheckValid(); err != nil {
+			_ = writeJSON(w, http.StatusBadGateway, map[string]string{"error": "upstream returned invalid timestamp"})
+			return
+		}
+		t := ts.AsTime()
 		out = append(out, readingJSON{
 			Time:       formatTime(t),
 			MeterUsage: rr.GetMeterUsage(),

@@ -2,16 +2,13 @@ package grpcserver
 
 import (
 	"context"
-	"net"
+	"errors"
 	"time"
 
 	meterusagev1 "github.com/milad/spectral/gen/go/proto/meterusage/v1"
 	"github.com/milad/spectral/internal/domain"
 	"github.com/milad/spectral/internal/service"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/health"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -26,6 +23,9 @@ func New(svc *service.MeterUsageService) *Server {
 }
 
 func (s *Server) ListReadings(ctx context.Context, req *meterusagev1.ListReadingsRequest) (*meterusagev1.ListReadingsResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
 	start, end, err := fromProtoRange(req.GetStart(), req.GetEnd())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -33,7 +33,10 @@ func (s *Server) ListReadings(ctx context.Context, req *meterusagev1.ListReading
 
 	readings, err := s.svc.ListReadings(ctx, start, end)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		if errors.Is(err, service.ErrInvalidTimeRange) {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+		return nil, status.Error(codes.Internal, "internal error")
 	}
 
 	out := make([]*meterusagev1.Reading, 0, len(readings))
@@ -70,18 +73,5 @@ func fromProtoRange(start, end *timestamppb.Timestamp) (*time.Time, *time.Time, 
 		e = &t
 	}
 	return s, e, nil
-}
-
-// Run starts a gRPC server and blocks until it stops.
-func Run(lis net.Listener, srv meterusagev1.MeterUsageServiceServer, opts ...grpc.ServerOption) error {
-	g := grpc.NewServer(opts...)
-
-	meterusagev1.RegisterMeterUsageServiceServer(g, srv)
-
-	hs := health.NewServer()
-	hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
-	healthpb.RegisterHealthServer(g, hs)
-
-	return g.Serve(lis)
 }
 
