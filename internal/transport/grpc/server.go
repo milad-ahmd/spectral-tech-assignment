@@ -74,4 +74,3 @@ func fromProtoRange(start, end *timestamppb.Timestamp) (*time.Time, *time.Time, 
 	}
 	return s, e, nil
 }
-

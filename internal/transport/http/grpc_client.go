@@ -29,4 +29,3 @@ func parseOptionalRFC3339(v string) (*time.Time, error) {
 	tt := t.UTC()
 	return &tt, nil
 }
-

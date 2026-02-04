@@ -105,4 +105,3 @@ func TestServer_ListReadings_FiltersRange(t *testing.T) {
 		t.Fatalf("meter usage=%v want %v", got, want)
 	}
 }
-

@@ -20,4 +20,3 @@ func writeJSON(w http.ResponseWriter, status int, v any) error {
 func formatTime(t time.Time) string {
 	return t.UTC().Format(time.RFC3339Nano)
 }
-

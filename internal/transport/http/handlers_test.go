@@ -121,4 +121,3 @@ func TestHTTP_Index(t *testing.T) {
 		t.Fatalf("expected body")
 	}
 }
-

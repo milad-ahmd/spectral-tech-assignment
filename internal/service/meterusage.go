@@ -27,4 +27,3 @@ func (s *MeterUsageService) ListReadings(ctx context.Context, startInclusive *ti
 	}
 	return s.repo.List(ctx, startInclusive, endExclusive)
 }
-
