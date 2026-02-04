@@ -230,12 +230,12 @@ var indexHTMLStatic = `<!doctype html>
         <div class="card">
           <div class="row">
             <label>
-              Start (RFC3339)
-              <input id="start" placeholder="2019-01-01T00:00:00Z" />
+              Start
+              <input id="start" type="datetime-local" step="1" />
             </label>
             <label>
-              End (RFC3339)
-              <input id="end" placeholder="2019-01-02T00:00:00Z" />
+              End
+              <input id="end" type="datetime-local" step="1" />
             </label>
             <button id="load">Load</button>
             <button id="reset" class="secondary" title="Clear filters">Reset</button>
@@ -246,7 +246,7 @@ var indexHTMLStatic = `<!doctype html>
 
           <div class="chartWrap">
             <canvas id="chart" width="1000" height="260"></canvas>
-            <div class="muted" style="margin-top:8px;">Tip: leave start/end empty to fetch the full dataset. Times are treated as UTC.</div>
+            <div class="muted" style="margin-top:8px;">Tip: leave start/end empty to fetch the full dataset. The picker uses your local time and is sent to the API as UTC.</div>
           </div>
         </div>
 
@@ -438,29 +438,50 @@ var indexHTMLStatic = `<!doctype html>
         return isFinite(d);
       }
 
+      function isoFromPickerValue(v) {
+        if (!v) return '';
+        // datetime-local is interpreted in the user's local timezone.
+        // Convert to an RFC3339 UTC string for the API.
+        const d = new Date(v);
+        if (!isFinite(d.getTime())) return null;
+        return d.toISOString();
+      }
+
       async function load() {
         setError('');
         setLoading(true);
         setMeta('Loading...');
 
         const qs = new URLSearchParams();
-        const s = elStart.value.trim();
-        const e = elEnd.value.trim();
+        const sISO = isoFromPickerValue(elStart.value);
+        const eISO = isoFromPickerValue(elEnd.value);
 
-        if (!validateRFC3339(s)) {
+        if (sISO === null) {
           setLoading(false);
           setMeta('');
-          setError('Start must be RFC3339 (example: 2019-01-01T00:00:00Z)');
+          setError('Invalid start date/time');
           return;
         }
-        if (!validateRFC3339(e)) {
+        if (eISO === null) {
           setLoading(false);
           setMeta('');
-          setError('End must be RFC3339 (example: 2019-01-02T00:00:00Z)');
+          setError('Invalid end date/time');
           return;
         }
-        if (s) qs.set('start', s);
-        if (e) qs.set('end', e);
+        if (sISO && !validateRFC3339(sISO)) {
+          setLoading(false);
+          setMeta('');
+          setError('Invalid start date/time');
+          return;
+        }
+        if (eISO && !validateRFC3339(eISO)) {
+          setLoading(false);
+          setMeta('');
+          setError('Invalid end date/time');
+          return;
+        }
+        if (sISO) qs.set('start', sISO);
+        if (eISO) qs.set('end', eISO);
 
         const t0 = performance.now();
         const res = await fetch('/api/readings?' + qs.toString(), { headers: { 'Accept': 'application/json' }});
