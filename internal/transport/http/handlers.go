@@ -35,6 +35,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 }
 
+// handleListReadings returns JSON readings filtered by [start, end) if provided.
+// Query params `start` and `end` must be RFC3339 (UTC recommended).
 func (s *Server) handleListReadings(w http.ResponseWriter, r *http.Request) {
 	start, err := parseOptionalRFC3339(r.URL.Query().Get("start"))
 	if err != nil {
