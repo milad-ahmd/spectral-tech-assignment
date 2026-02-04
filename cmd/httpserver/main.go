@@ -70,4 +70,3 @@ func envOr(k, fallback string) string {
 	}
 	return fallback
 }
-

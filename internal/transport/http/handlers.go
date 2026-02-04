@@ -121,44 +121,157 @@ var indexHTMLStatic = `<!doctype html>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Meter Usage</title>
     <style>
-      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; color: #111; }
-      .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; margin-bottom: 16px; }
-      label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
-      input { padding: 8px 10px; font-size: 14px; width: 240px; }
-      button { padding: 9px 12px; font-size: 14px; cursor: pointer; }
-      table { border-collapse: collapse; width: 100%; margin-top: 16px; }
-      th, td { border-bottom: 1px solid #eee; padding: 10px 8px; text-align: left; font-size: 14px; }
-      th { position: sticky; top: 0; background: #fff; }
-      .muted { color: #666; font-size: 13px; }
-      .error { color: #b00020; font-size: 13px; }
-      code { background: #f6f6f6; padding: 2px 6px; border-radius: 6px; }
+      :root {
+        --bg: #0b1020;
+        --panel: rgba(255,255,255,0.06);
+        --panel2: rgba(255,255,255,0.08);
+        --text: rgba(255,255,255,0.92);
+        --muted: rgba(255,255,255,0.68);
+        --border: rgba(255,255,255,0.12);
+        --accent: #7dd3fc;
+        --danger: #ff6b6b;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: radial-gradient(1200px 600px at 20% 0%, rgba(125,211,252,0.14), transparent 60%),
+                    radial-gradient(800px 400px at 80% 10%, rgba(167,139,250,0.16), transparent 55%),
+                    var(--bg);
+        color: var(--text);
+      }
+      .container { max-width: 1100px; margin: 32px auto; padding: 0 16px; }
+      h1 { margin: 0 0 8px 0; font-size: 24px; letter-spacing: -0.01em; }
+      .muted { color: var(--muted); font-size: 13px; line-height: 1.5; }
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px;
+        backdrop-filter: blur(10px);
+      }
+      .grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 14px; }
+      @media (min-width: 920px) {
+        .grid { grid-template-columns: 1.2fr 0.8fr; }
+      }
+      .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+      label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+      input {
+        padding: 10px 12px;
+        font-size: 14px;
+        width: 260px;
+        color: var(--text);
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        outline: none;
+      }
+      input:focus { border-color: rgba(125,211,252,0.65); box-shadow: 0 0 0 4px rgba(125,211,252,0.12); }
+      button {
+        padding: 10px 12px;
+        font-size: 14px;
+        cursor: pointer;
+        color: var(--text);
+        background: rgba(125,211,252,0.18);
+        border: 1px solid rgba(125,211,252,0.35);
+        border-radius: 10px;
+      }
+      button.secondary {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--border);
+      }
+      button:disabled { opacity: 0.55; cursor: not-allowed; }
+      .error { color: var(--danger); font-size: 13px; margin-top: 8px; }
+      .meta { margin-top: 8px; }
+
+      .kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
+      .kpi {
+        background: var(--panel2);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px 12px;
+      }
+      .kpi .label { color: var(--muted); font-size: 12px; }
+      .kpi .value { font-size: 16px; margin-top: 4px; }
+
+      .chartWrap { margin-top: 12px; }
+      canvas { width: 100%; height: 160px; background: rgba(0,0,0,0.12); border: 1px solid var(--border); border-radius: 12px; }
+
+      table { border-collapse: separate; border-spacing: 0; width: 100%; margin-top: 12px; overflow: hidden; border-radius: 12px; }
+      thead th {
+        position: sticky;
+        top: 0;
+        background: rgba(14, 20, 40, 0.96);
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        font-size: 12px;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding: 10px 10px;
+      }
+      tbody td {
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+        padding: 10px 10px;
+        font-size: 13px;
+      }
+      tbody tr:nth-child(odd) { background: rgba(255,255,255,0.03); }
+      code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 8px; }
     </style>
   </head>
   <body>
-    <h1>Meter usage readings</h1>
-    <p class="muted">Data comes from <code>/api/readings</code> (HTTP) backed by gRPC.</p>
+    <div class="container">
+      <h1>Meter usage</h1>
+      <div class="muted">Data is served by gRPC and exposed as JSON at <code>/api/readings</code>.</div>
 
-    <div class="row">
-      <label>
-        Start (RFC3339)
-        <input id="start" placeholder="2019-01-01T00:00:00Z" />
-      </label>
-      <label>
-        End (RFC3339)
-        <input id="end" placeholder="2019-01-02T00:00:00Z" />
-      </label>
-      <button id="load">Load</button>
+      <div class="grid">
+        <div class="card">
+          <div class="row">
+            <label>
+              Start (RFC3339)
+              <input id="start" placeholder="2019-01-01T00:00:00Z" />
+            </label>
+            <label>
+              End (RFC3339)
+              <input id="end" placeholder="2019-01-02T00:00:00Z" />
+            </label>
+            <button id="load">Load</button>
+            <button id="reset" class="secondary" title="Clear filters">Reset</button>
+          </div>
+
+          <div class="meta muted" id="meta"></div>
+          <div class="error" id="err"></div>
+
+          <div class="chartWrap">
+            <canvas id="chart" width="1000" height="260"></canvas>
+            <div class="muted" style="margin-top:8px;">Tip: leave start/end empty to fetch the full dataset. Times are treated as UTC.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="muted">Summary</div>
+          <div class="kpis">
+            <div class="kpi"><div class="label">Readings</div><div class="value" id="kpiCount">-</div></div>
+            <div class="kpi"><div class="label">Range</div><div class="value" id="kpiRange">-</div></div>
+            <div class="kpi"><div class="label">Min usage</div><div class="value" id="kpiMin">-</div></div>
+            <div class="kpi"><div class="label">Max usage</div><div class="value" id="kpiMax">-</div></div>
+            <div class="kpi"><div class="label">Avg usage</div><div class="value" id="kpiAvg">-</div></div>
+            <div class="kpi"><div class="label">API</div><div class="value"><a href="/api/readings" target="_blank" rel="noreferrer">/api/readings</a></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <table>
+          <thead>
+            <tr><th style="width:60%;">Time (UTC)</th><th>Meter usage</th></tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
     </div>
-
-    <div id="meta" class="muted"></div>
-    <div id="err" class="error"></div>
-
-    <table>
-      <thead>
-        <tr><th>Time (UTC)</th><th>Meter usage</th></tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
 
     <script>
       const elStart = document.getElementById('start');
@@ -166,9 +279,34 @@ var indexHTMLStatic = `<!doctype html>
       const elRows = document.getElementById('rows');
       const elMeta = document.getElementById('meta');
       const elErr = document.getElementById('err');
+      const btnLoad = document.getElementById('load');
+      const btnReset = document.getElementById('reset');
+
+      const kpiCount = document.getElementById('kpiCount');
+      const kpiRange = document.getElementById('kpiRange');
+      const kpiMin = document.getElementById('kpiMin');
+      const kpiMax = document.getElementById('kpiMax');
+      const kpiAvg = document.getElementById('kpiAvg');
+
+      const chart = document.getElementById('chart');
+      const ctx = chart.getContext('2d');
 
       function setError(msg) { elErr.textContent = msg || ''; }
       function setMeta(msg) { elMeta.textContent = msg || ''; }
+      function setLoading(on) { btnLoad.disabled = !!on; btnReset.disabled = !!on; }
+
+      function fmt(n) {
+        if (typeof n !== 'number' || !isFinite(n)) return '-';
+        return (Math.round(n * 100) / 100).toFixed(2);
+      }
+
+      function resetKpis() {
+        kpiCount.textContent = '-';
+        kpiRange.textContent = '-';
+        kpiMin.textContent = '-';
+        kpiMax.textContent = '-';
+        kpiAvg.textContent = '-';
+      }
 
       function render(readings) {
         elRows.innerHTML = '';
@@ -177,32 +315,182 @@ var indexHTMLStatic = `<!doctype html>
           const tdT = document.createElement('td');
           const tdU = document.createElement('td');
           tdT.textContent = r.time;
-          tdU.textContent = String(r.meterUsage);
+          tdU.textContent = fmt(r.meterUsage);
           tr.appendChild(tdT);
           tr.appendChild(tdU);
           elRows.appendChild(tr);
         }
       }
 
+      function computeAndRenderSummary(readings) {
+        resetKpis();
+        if (!Array.isArray(readings) || readings.length === 0) return;
+
+        let min = readings[0].meterUsage;
+        let max = readings[0].meterUsage;
+        let sum = 0;
+        let t0 = Date.parse(readings[0].time);
+        let t1 = Date.parse(readings[readings.length - 1].time);
+        for (const r of readings) {
+          const u = Number(r.meterUsage);
+          if (u < min) min = u;
+          if (u > max) max = u;
+          sum += u;
+        }
+        kpiCount.textContent = String(readings.length);
+        kpiMin.textContent = fmt(min);
+        kpiMax.textContent = fmt(max);
+        kpiAvg.textContent = fmt(sum / readings.length);
+        if (isFinite(t0) && isFinite(t1)) {
+          const spanMin = Math.max(0, Math.round((t1 - t0) / 60000));
+          kpiRange.textContent = spanMin + ' min';
+        }
+      }
+
+      function clearChart() {
+        ctx.clearRect(0, 0, chart.width, chart.height);
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+        ctx.fillText('No data loaded', 14, 22);
+      }
+
+      function drawChart(readings) {
+        ctx.clearRect(0, 0, chart.width, chart.height);
+        if (!Array.isArray(readings) || readings.length < 2) {
+          clearChart();
+          return;
+        }
+
+        const w = chart.width;
+        const h = chart.height;
+        const pad = 16;
+        const plotW = w - pad * 2;
+        const plotH = h - pad * 2;
+
+        let tMin = Date.parse(readings[0].time);
+        let tMax = Date.parse(readings[readings.length - 1].time);
+        if (!isFinite(tMin) || !isFinite(tMax) || tMax <= tMin) {
+          // fall back to index-based x
+          tMin = 0;
+          tMax = readings.length - 1;
+        }
+
+        let uMin = Number(readings[0].meterUsage);
+        let uMax = Number(readings[0].meterUsage);
+        for (const r of readings) {
+          const u = Number(r.meterUsage);
+          if (u < uMin) uMin = u;
+          if (u > uMax) uMax = u;
+        }
+        if (!isFinite(uMin) || !isFinite(uMax)) {
+          clearChart();
+          return;
+        }
+        if (uMax === uMin) uMax = uMin + 1;
+
+        function xFor(i, r) {
+          let tt = Date.parse(r.time);
+          if (!isFinite(tt)) tt = i;
+          const x = pad + ((tt - tMin) / (tMax - tMin)) * plotW;
+          return x;
+        }
+        function yFor(u) {
+          const y = pad + (1 - ((u - uMin) / (uMax - uMin))) * plotH;
+          return y;
+        }
+
+        // grid
+        ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+          const y = pad + (i / 4) * plotH;
+          ctx.beginPath();
+          ctx.moveTo(pad, y);
+          ctx.lineTo(pad + plotW, y);
+          ctx.stroke();
+        }
+
+        // line
+        ctx.strokeStyle = 'rgba(125,211,252,0.95)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < readings.length; i++) {
+          const r = readings[i];
+          const x = xFor(i, r);
+          const y = yFor(Number(r.meterUsage));
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // bounds labels
+        ctx.fillStyle = 'rgba(255,255,255,0.65)';
+        ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+        ctx.fillText('min ' + fmt(uMin), pad, h - 8);
+        const maxLabel = 'max ' + fmt(uMax);
+        const mw = ctx.measureText(maxLabel).width;
+        ctx.fillText(maxLabel, w - pad - mw, 18);
+      }
+
+      function validateRFC3339(s) {
+        if (!s) return true;
+        const d = Date.parse(s);
+        return isFinite(d);
+      }
+
       async function load() {
         setError('');
+        setLoading(true);
         setMeta('Loading...');
-        const qs = new URLSearchParams();
-        if (elStart.value.trim()) qs.set('start', elStart.value.trim());
-        if (elEnd.value.trim()) qs.set('end', elEnd.value.trim());
 
+        const qs = new URLSearchParams();
+        const s = elStart.value.trim();
+        const e = elEnd.value.trim();
+
+        if (!validateRFC3339(s)) {
+          setLoading(false);
+          setMeta('');
+          setError('Start must be RFC3339 (example: 2019-01-01T00:00:00Z)');
+          return;
+        }
+        if (!validateRFC3339(e)) {
+          setLoading(false);
+          setMeta('');
+          setError('End must be RFC3339 (example: 2019-01-02T00:00:00Z)');
+          return;
+        }
+        if (s) qs.set('start', s);
+        if (e) qs.set('end', e);
+
+        const t0 = performance.now();
         const res = await fetch('/api/readings?' + qs.toString(), { headers: { 'Accept': 'application/json' }});
         const body = await res.json().catch(() => null);
         if (!res.ok) {
           setMeta('');
           setError((body && body.error) ? body.error : ('Request failed: ' + res.status));
+          setLoading(false);
           return;
         }
-        setMeta('Loaded ' + body.length + ' readings.');
+        const ms = Math.round(performance.now() - t0);
+        setMeta('Loaded ' + body.length + ' readings in ' + ms + 'ms.');
         render(body);
+        computeAndRenderSummary(body);
+        drawChart(body);
+        setLoading(false);
       }
 
-      document.getElementById('load').addEventListener('click', load);
+      btnLoad.addEventListener('click', load);
+      btnReset.addEventListener('click', () => {
+        elStart.value = '';
+        elEnd.value = '';
+        setError('');
+        setMeta('');
+        resetKpis();
+        clearChart();
+        elRows.innerHTML = '';
+      });
+      clearChart();
+      resetKpis();
       load();
     </script>
   </body>
