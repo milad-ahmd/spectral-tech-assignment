@@ -10,9 +10,5 @@ dist/
 *.out
 coverage.out
 
-# Generated
-gen/
-
 *.pdf
-meterusage.csv
 

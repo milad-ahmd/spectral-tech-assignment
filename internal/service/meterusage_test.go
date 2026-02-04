@@ -23,4 +23,3 @@ func TestMeterUsageService_RejectsInvalidRange(t *testing.T) {
 		t.Fatalf("expected error, got nil")
 	}
 }
-
