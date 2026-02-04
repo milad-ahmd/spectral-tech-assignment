@@ -54,3 +54,10 @@ Then open `http://localhost:8080/`.
 - The CSV is **loaded once at startup** into memory and sorted by time, so responses stay **in-order**.
 - One row in the provided CSV contains `NaN`; parsing **skips invalid rows** and continues (the gRPC server logs a warning at startup).
 
+### Trade-offs
+
+- **No TSDB**: the assignment asks to serve the CSV; adding a time-series database would be unnecessary complexity here.
+- **In-memory load**: simplest way to keep reads fast and ordered; acceptable for the provided dataset size.
+- **Range semantics**: \([start,end)\) avoids double-counting boundary points and matches common time-series APIs.
+- **Bad rows**: invalid rows are skipped so the service stays available, but a warning is logged at startup.
+

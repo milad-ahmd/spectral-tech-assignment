@@ -89,6 +89,20 @@ func TestHTTP_ListReadings_MapsUpstreamInvalidArgument(t *testing.T) {
 	}
 }
 
+func TestHTTP_ListReadings_MapsUpstreamUnavailableToBadGateway(t *testing.T) {
+	t.Parallel()
+
+	fc := &fakeClient{err: status.Error(codes.Unavailable, "nope")}
+	srv := New(fc)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/readings", nil)
+	srv.ServeHTTP(rr, req)
+
+	if got, want := rr.Code, http.StatusBadGateway; got != want {
+		t.Fatalf("status=%d want %d", got, want)
+	}
+}
+
 func TestHTTP_Index(t *testing.T) {
 	t.Parallel()
 

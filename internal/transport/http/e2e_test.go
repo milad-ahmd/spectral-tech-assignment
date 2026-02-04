@@ -77,4 +77,3 @@ func TestHTTP_ToGRPC_EndToEnd(t *testing.T) {
 		t.Fatalf("unexpected usages: %#v", got)
 	}
 }
-

@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"time"
 
@@ -38,6 +39,8 @@ func (s *Server) routes() {
 // handleListReadings returns JSON readings filtered by [start, end) if provided.
 // Query params `start` and `end` must be RFC3339 (UTC recommended).
 func (s *Server) handleListReadings(w http.ResponseWriter, r *http.Request) {
+	started := time.Now()
+
 	start, err := parseOptionalRFC3339(r.URL.Query().Get("start"))
 	if err != nil {
 		_ = writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid start"})
@@ -95,6 +98,11 @@ func (s *Server) handleListReadings(w http.ResponseWriter, r *http.Request) {
 
 	// Keep shape simple: JSON array of readings.
 	_ = writeJSON(w, http.StatusOK, out)
+
+	log.Printf("GET /api/readings start=%q end=%q -> %d readings in %s",
+		r.URL.Query().Get("start"), r.URL.Query().Get("end"),
+		len(out), time.Since(started).Truncate(time.Millisecond),
+	)
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -198,5 +206,4 @@ var indexHTMLStatic = `<!doctype html>
       load();
     </script>
   </body>
-</html>`;
-
+</html>`
