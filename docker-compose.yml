@@ -1,0 +1,20 @@
+services:
+  grpc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: grpc
+    ports:
+      - "9090:9090"
+  http:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: http
+    depends_on:
+      - grpc
+    environment:
+      - GRPC_TARGET=grpc:9090
+    ports:
+      - "8080:8080"
+

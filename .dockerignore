@@ -1,0 +1,9 @@
+.git
+.tools
+.vscode
+.idea
+*.test
+*.out
+coverage.out
+Spectral Tech Assignment.pdf
+
