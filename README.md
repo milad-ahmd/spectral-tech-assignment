@@ -34,12 +34,16 @@ Open `http://localhost:8080/`.
 
 ### HTTP API
 
-- **List readings**: `GET /api/readings?start=<RFC3339>&end=<RFC3339>`
+- **List readings**: `GET /api/readings?start=<RFC3339>&end=<RFC3339>&page_size=<n>&page_token=<offset>`
   - `start` is inclusive, `end` is exclusive: \([start, end)\)
   - times should be RFC3339 (UTC recommended)
+  - pagination is optional:
+    - `page_size=0` (or omitted) returns all readings in-range (with a safety cap on very large ranges)
+    - when `page_size>0`, `page_token` is an offset into the filtered result set
+    - the response may include `nextPageToken` when more data is available
 
 ```bash
-curl "http://localhost:8080/api/readings?start=2019-01-01T00:00:00Z&end=2019-01-01T01:00:00Z"
+curl "http://localhost:8080/api/readings?start=2019-01-01T00:00:00Z&end=2019-01-01T01:00:00Z&page_size=1000"
 ```
 
 - **Health**: `GET /healthz`

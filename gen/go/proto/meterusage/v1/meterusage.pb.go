@@ -27,7 +27,12 @@ type ListReadingsRequest struct {
 	// Inclusive start time filter. If unset, starts from the earliest reading.
 	Start *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start,proto3" json:"start,omitempty"`
 	// Exclusive end time filter. If unset, ends at the latest reading.
-	End           *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=end,proto3" json:"end,omitempty"`
+	End *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=end,proto3" json:"end,omitempty"`
+	// Pagination. If page_size is 0, the server may return all readings in-range.
+	// If page_size is set, page_token is an offset (as a decimal string) into the
+	// filtered result set.
+	PageSize      int32  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageToken     string `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -76,9 +81,24 @@ func (x *ListReadingsRequest) GetEnd() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *ListReadingsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListReadingsRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
 type ListReadingsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Readings      []*Reading             `protobuf:"bytes,1,rep,name=readings,proto3" json:"readings,omitempty"`
+	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -118,6 +138,13 @@ func (x *ListReadingsResponse) GetReadings() []*Reading {
 		return x.Readings
 	}
 	return nil
+}
+
+func (x *ListReadingsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
 }
 
 type Reading struct {
@@ -176,12 +203,16 @@ var File_proto_meterusage_v1_meterusage_proto protoreflect.FileDescriptor
 
 const file_proto_meterusage_v1_meterusage_proto_rawDesc = "" +
 	"\n" +
-	"$proto/meterusage/v1/meterusage.proto\x12\rmeterusage.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"u\n" +
+	"$proto/meterusage/v1/meterusage.proto\x12\rmeterusage.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb1\x01\n" +
 	"\x13ListReadingsRequest\x120\n" +
 	"\x05start\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x05start\x12,\n" +
-	"\x03end\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x03end\"J\n" +
+	"\x03end\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x03end\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x04 \x01(\tR\tpageToken\"r\n" +
 	"\x14ListReadingsResponse\x122\n" +
-	"\breadings\x18\x01 \x03(\v2\x16.meterusage.v1.ReadingR\breadings\"Z\n" +
+	"\breadings\x18\x01 \x03(\v2\x16.meterusage.v1.ReadingR\breadings\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"Z\n" +
 	"\aReading\x12.\n" +
 	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12\x1f\n" +
 	"\vmeter_usage\x18\x02 \x01(\x01R\n" +

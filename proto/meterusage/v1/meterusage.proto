@@ -16,10 +16,17 @@ message ListReadingsRequest {
   google.protobuf.Timestamp start = 1;
   // Exclusive end time filter. If unset, ends at the latest reading.
   google.protobuf.Timestamp end = 2;
+
+  // Pagination. If page_size is 0, the server may return all readings in-range.
+  // If page_size is set, page_token is an offset (as a decimal string) into the
+  // filtered result set.
+  int32 page_size = 3;
+  string page_token = 4;
 }
 
 message ListReadingsResponse {
   repeated Reading readings = 1;
+  string next_page_token = 2;
 }
 
 message Reading {

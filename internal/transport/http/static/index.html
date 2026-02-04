@@ -123,6 +123,7 @@
             </label>
             <button id="load">Load</button>
             <button id="reset" class="secondary" title="Clear filters">Reset</button>
+            <button id="more" class="secondary" title="Fetch next page" disabled>Load more</button>
           </div>
 
           <div class="meta muted" id="meta"></div>
@@ -165,6 +166,7 @@
       const elErr = document.getElementById('err');
       const btnLoad = document.getElementById('load');
       const btnReset = document.getElementById('reset');
+      const btnMore = document.getElementById('more');
 
       const kpiCount = document.getElementById('kpiCount');
       const kpiRange = document.getElementById('kpiRange');
@@ -175,9 +177,13 @@
       const chart = document.getElementById('chart');
       const ctx = chart.getContext('2d');
 
+      const PAGE_SIZE = 1000;
+      let nextPageToken = '';
+      let allReadings = [];
+
       function setError(msg) { elErr.textContent = msg || ''; }
       function setMeta(msg) { elMeta.textContent = msg || ''; }
-      function setLoading(on) { btnLoad.disabled = !!on; btnReset.disabled = !!on; }
+      function setLoading(on) { btnLoad.disabled = !!on; btnReset.disabled = !!on; btnMore.disabled = !!on || !nextPageToken; }
 
       function fmt(n) {
         if (typeof n !== 'number' || !isFinite(n)) return '-';
@@ -331,60 +337,77 @@
         if (!elEnd.value) elEnd.value = '2019-01-02T00:00:00';
       }
 
-      async function load() {
-        setError('');
-        setLoading(true);
-        setMeta('Loading...');
-
+      function buildQuery(token) {
         const qs = new URLSearchParams();
         const sISO = isoFromPickerValue(elStart.value);
         const eISO = isoFromPickerValue(elEnd.value);
 
-        if (sISO === null) {
-          setLoading(false);
-          setMeta('');
-          setError('Invalid start date/time');
-          return;
-        }
-        if (eISO === null) {
-          setLoading(false);
-          setMeta('');
-          setError('Invalid end date/time');
-          return;
-        }
-        if (sISO && !validateRFC3339(sISO)) {
-          setLoading(false);
-          setMeta('');
-          setError('Invalid start date/time');
-          return;
-        }
-        if (eISO && !validateRFC3339(eISO)) {
-          setLoading(false);
-          setMeta('');
-          setError('Invalid end date/time');
-          return;
-        }
+        if (sISO === null) return { error: 'Invalid start date/time' };
+        if (eISO === null) return { error: 'Invalid end date/time' };
+        if (sISO && !validateRFC3339(sISO)) return { error: 'Invalid start date/time' };
+        if (eISO && !validateRFC3339(eISO)) return { error: 'Invalid end date/time' };
+
         if (sISO) qs.set('start', sISO);
         if (eISO) qs.set('end', eISO);
+        qs.set('page_size', String(PAGE_SIZE));
+        if (token) qs.set('page_token', token);
+
+        return { qs };
+      }
+
+      function applyNewState(newReadings, nextToken, append) {
+        nextPageToken = nextToken || '';
+        allReadings = append ? allReadings.concat(newReadings) : newReadings;
+        btnMore.disabled = !nextPageToken;
+
+        render(allReadings);
+        computeAndRenderSummary(allReadings);
+        drawChart(allReadings);
+      }
+
+      async function fetchPage(token, append) {
+        setError('');
+        setLoading(true);
+        setMeta(append ? 'Loading more...' : 'Loading...');
+
+        const built = buildQuery(token);
+        if (built.error) {
+          setLoading(false);
+          setMeta('');
+          setError(built.error);
+          return;
+        }
 
         const t0 = performance.now();
-        const res = await fetch('/api/readings?' + qs.toString(), { headers: { 'Accept': 'application/json' }});
+        const res = await fetch('/api/readings?' + built.qs.toString(), { headers: { 'Accept': 'application/json' }});
         const body = await res.json().catch(() => null);
         if (!res.ok) {
           setMeta('');
-          setError((body && body.error) ? body.error : ('Request failed: ' + res.status));
+          const msg = (body && body.message) ? body.message : ('Request failed: ' + res.status);
+          setError(msg);
           setLoading(false);
           return;
         }
         const ms = Math.round(performance.now() - t0);
-        setMeta('Loaded ' + body.length + ' readings in ' + ms + 'ms.');
-        render(body);
-        computeAndRenderSummary(body);
-        drawChart(body);
+        const readings = (body && Array.isArray(body.readings)) ? body.readings : [];
+        const next = (body && typeof body.nextPageToken === 'string') ? body.nextPageToken : '';
+        applyNewState(readings, next, append);
+        setMeta('Loaded ' + allReadings.length + ' readings (page size ' + PAGE_SIZE + ') in ' + ms + 'ms.');
         setLoading(false);
       }
 
+      async function load() {
+        nextPageToken = '';
+        allReadings = [];
+        btnMore.disabled = true;
+        await fetchPage('', false);
+      }
+
       btnLoad.addEventListener('click', load);
+      btnMore.addEventListener('click', () => {
+        if (!nextPageToken) return;
+        fetchPage(nextPageToken, true);
+      });
       btnReset.addEventListener('click', () => {
         elStart.value = '';
         elEnd.value = '';
@@ -393,6 +416,9 @@
         resetKpis();
         clearChart();
         elRows.innerHTML = '';
+        nextPageToken = '';
+        allReadings = [];
+        btnMore.disabled = true;
         setDefault2019();
       });
 

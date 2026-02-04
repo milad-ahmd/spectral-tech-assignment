@@ -59,6 +59,6 @@ func (r *Repo) List(ctx context.Context, startInclusive *time.Time, endExclusive
 		readings = readings[:j]
 	}
 
-	out := append([]domain.Reading(nil), readings...)
-	return out, nil
+	// Return a view into the in-memory slice; callers must not mutate it.
+	return readings, nil
 }

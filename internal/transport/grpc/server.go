@@ -31,19 +31,22 @@ func (s *Server) ListReadings(ctx context.Context, req *meterusagev1.ListReading
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	readings, err := s.svc.ListReadings(ctx, start, end)
+	res, err := s.svc.ListReadingsPage(ctx, start, end, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidTimeRange) {
+		if errors.Is(err, service.ErrInvalidTimeRange) || errors.Is(err, service.ErrInvalidPagination) {
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
 		return nil, status.Error(codes.Internal, "internal error")
 	}
 
-	out := make([]*meterusagev1.Reading, 0, len(readings))
-	for _, r := range readings {
+	out := make([]*meterusagev1.Reading, 0, len(res.Readings))
+	for _, r := range res.Readings {
 		out = append(out, toProtoReading(r))
 	}
-	return &meterusagev1.ListReadingsResponse{Readings: out}, nil
+	return &meterusagev1.ListReadingsResponse{
+		Readings:      out,
+		NextPageToken: res.NextPageToken,
+	}, nil
 }
 
 func toProtoReading(r domain.Reading) *meterusagev1.Reading {

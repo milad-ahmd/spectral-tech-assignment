@@ -104,3 +104,55 @@ func TestServer_ListReadings_FiltersRange(t *testing.T) {
 		t.Fatalf("meter usage=%v want %v", got, want)
 	}
 }
+
+func TestServer_ListReadings_Pagination(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2019, 1, 1, 0, 0, 0, 0, time.UTC)
+	repo := csvrepo.New([]domain.Reading{
+		{Time: base.Add(15 * time.Minute), MeterUsage: 1},
+		{Time: base.Add(30 * time.Minute), MeterUsage: 2},
+		{Time: base.Add(45 * time.Minute), MeterUsage: 3},
+	})
+	svc := service.NewMeterUsageService(repo)
+	srv := New(svc)
+
+	lis := bufconn.Listen(1024 * 1024)
+	g := grpc.NewServer()
+	meterusagev1.RegisterMeterUsageServiceServer(g, srv)
+	go func() { _ = g.Serve(lis) }()
+	t.Cleanup(g.Stop)
+
+	conn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+
+	client := meterusagev1.NewMeterUsageServiceClient(conn)
+
+	resp1, err := client.ListReadings(context.Background(), &meterusagev1.ListReadingsRequest{PageSize: 2})
+	if err != nil {
+		t.Fatalf("ListReadings: %v", err)
+	}
+	if got, want := len(resp1.Readings), 2; got != want {
+		t.Fatalf("len(readings)=%d want %d", got, want)
+	}
+	if resp1.NextPageToken == "" {
+		t.Fatalf("expected next page token")
+	}
+
+	resp2, err := client.ListReadings(context.Background(), &meterusagev1.ListReadingsRequest{PageSize: 2, PageToken: resp1.NextPageToken})
+	if err != nil {
+		t.Fatalf("ListReadings: %v", err)
+	}
+	if got, want := len(resp2.Readings), 1; got != want {
+		t.Fatalf("len(readings)=%d want %d", got, want)
+	}
+	if resp2.NextPageToken != "" {
+		t.Fatalf("expected empty next page token, got %q", resp2.NextPageToken)
+	}
+}

@@ -61,18 +61,18 @@ func TestHTTP_ToGRPC_EndToEnd(t *testing.T) {
 		t.Fatalf("status=%d want %d, body=%s", got, want, rr.Body.String())
 	}
 
-	var got []readingJSON
+	var got listReadingsResponseJSON
 	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("len=%d want 2", len(got))
+	if len(got.Readings) != 2 {
+		t.Fatalf("len=%d want 2", len(got.Readings))
 	}
 	// start is inclusive: includes 00:30 and 00:45, but excludes 01:00.
-	if got[0].Time != "2019-01-01T00:30:00Z" || got[1].Time != "2019-01-01T00:45:00Z" {
-		t.Fatalf("unexpected times: %#v", got)
+	if got.Readings[0].Time != "2019-01-01T00:30:00Z" || got.Readings[1].Time != "2019-01-01T00:45:00Z" {
+		t.Fatalf("unexpected times: %#v", got.Readings)
 	}
-	if got[0].MeterUsage != 2.2 || got[1].MeterUsage != 3.3 {
-		t.Fatalf("unexpected usages: %#v", got)
+	if got.Readings[0].MeterUsage != 2.2 || got.Readings[1].MeterUsage != 3.3 {
+		t.Fatalf("unexpected usages: %#v", got.Readings)
 	}
 }

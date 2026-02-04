@@ -50,15 +50,15 @@ func TestHTTP_ListReadings_OK_PreservesOrder(t *testing.T) {
 		t.Fatalf("status=%d want %d, body=%s", got, want, rr.Body.String())
 	}
 
-	var got []readingJSON
+	var got listReadingsResponseJSON
 	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("len=%d want 2", len(got))
+	if len(got.Readings) != 2 {
+		t.Fatalf("len=%d want 2", len(got.Readings))
 	}
-	if got[0].Time != formatTime(t0) || got[1].Time != formatTime(t1) {
-		t.Fatalf("unexpected order or time formatting: %#v", got)
+	if got.Readings[0].Time != formatTime(t0) || got.Readings[1].Time != formatTime(t1) {
+		t.Fatalf("unexpected order or time formatting: %#v", got.Readings)
 	}
 }
 
@@ -99,6 +99,19 @@ func TestHTTP_ListReadings_MapsUpstreamUnavailableToBadGateway(t *testing.T) {
 	srv.ServeHTTP(rr, req)
 
 	if got, want := rr.Code, http.StatusBadGateway; got != want {
+		t.Fatalf("status=%d want %d", got, want)
+	}
+}
+
+func TestHTTP_ListReadings_PageTokenRequiresPageSize(t *testing.T) {
+	t.Parallel()
+
+	srv := New(&fakeClient{})
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/readings?page_token=10", nil)
+	srv.ServeHTTP(rr, req)
+
+	if got, want := rr.Code, http.StatusBadRequest; got != want {
 		t.Fatalf("status=%d want %d", got, want)
 	}
 }

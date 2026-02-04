@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	meterusagev1 "github.com/milad/spectral/gen/go/proto/meterusage/v1"
@@ -58,22 +59,37 @@ func (s *Server) routes() {
 func (s *Server) handleListReadings(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
-		_ = writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		writeAPIError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
 	}
 
 	start, err := parseOptionalRFC3339(r.URL.Query().Get("start"))
 	if err != nil {
-		_ = writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid start"})
+		writeAPIError(w, http.StatusBadRequest, "invalid_argument", "invalid start")
 		return
 	}
 	end, err := parseOptionalRFC3339(r.URL.Query().Get("end"))
 	if err != nil {
-		_ = writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid end"})
+		writeAPIError(w, http.StatusBadRequest, "invalid_argument", "invalid end")
 		return
 	}
 	if start != nil && end != nil && !start.Before(*end) {
-		_ = writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid range: start must be before end"})
+		writeAPIError(w, http.StatusBadRequest, "invalid_argument", "invalid range: start must be before end")
+		return
+	}
+
+	pageSize, err := parseOptionalInt(r.URL.Query().Get("page_size"))
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, "invalid_argument", "invalid page_size")
+		return
+	}
+	if pageSize < 0 {
+		writeAPIError(w, http.StatusBadRequest, "invalid_argument", "page_size must be >= 0")
+		return
+	}
+	pageToken := r.URL.Query().Get("page_token")
+	if pageToken != "" && pageSize == 0 {
+		writeAPIError(w, http.StatusBadRequest, "invalid_argument", "page_token requires page_size")
 		return
 	}
 
@@ -84,6 +100,12 @@ func (s *Server) handleListReadings(w http.ResponseWriter, r *http.Request) {
 	if end != nil {
 		req.End = timestamppb.New(*end)
 	}
+	if pageSize != 0 {
+		req.PageSize = int32(pageSize)
+	}
+	if pageToken != "" {
+		req.PageToken = pageToken
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
@@ -91,11 +113,15 @@ func (s *Server) handleListReadings(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
 			if st.Code() == codes.InvalidArgument {
-				_ = writeJSON(w, http.StatusBadRequest, map[string]string{"error": st.Message()})
+				writeAPIError(w, http.StatusBadRequest, "invalid_argument", st.Message())
+				return
+			}
+			if st.Code() == codes.DeadlineExceeded {
+				writeAPIError(w, http.StatusGatewayTimeout, "upstream_timeout", "upstream timeout")
 				return
 			}
 		}
-		_ = writeJSON(w, http.StatusBadGateway, map[string]string{"error": "upstream error"})
+		writeAPIError(w, http.StatusBadGateway, "upstream_error", "upstream error")
 		return
 	}
 
@@ -103,11 +129,11 @@ func (s *Server) handleListReadings(w http.ResponseWriter, r *http.Request) {
 	for _, rr := range resp.GetReadings() {
 		ts := rr.GetTime()
 		if ts == nil {
-			_ = writeJSON(w, http.StatusBadGateway, map[string]string{"error": "upstream returned invalid reading"})
+			writeAPIError(w, http.StatusBadGateway, "upstream_error", "upstream returned invalid reading")
 			return
 		}
 		if err := ts.CheckValid(); err != nil {
-			_ = writeJSON(w, http.StatusBadGateway, map[string]string{"error": "upstream returned invalid timestamp"})
+			writeAPIError(w, http.StatusBadGateway, "upstream_error", "upstream returned invalid timestamp")
 			return
 		}
 		t := ts.AsTime()
@@ -117,8 +143,10 @@ func (s *Server) handleListReadings(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Keep shape simple: JSON array of readings.
-	_ = writeJSON(w, http.StatusOK, out)
+	_ = writeJSON(w, http.StatusOK, listReadingsResponseJSON{
+		Readings:      out,
+		NextPageToken: resp.GetNextPageToken(),
+	})
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
@@ -134,7 +162,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		// Keep API errors JSON.
 		if len(r.URL.Path) >= 4 && r.URL.Path[:4] == "/api" {
-			_ = writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+			writeAPIError(w, http.StatusNotFound, "not_found", "not found")
 			return
 		}
 		http.NotFound(w, r) // HTML/plain-text is fine for non-API paths.
@@ -165,4 +193,24 @@ func newRequestID() string {
 		return "000000000000"
 	}
 	return hex.EncodeToString(b[:])
+}
+
+func writeAPIError(w http.ResponseWriter, status int, code, message string) {
+	reqID := w.Header().Get("X-Request-Id")
+	_ = writeJSON(w, status, apiErrorJSON{
+		Code:      code,
+		Message:   message,
+		RequestID: reqID,
+	})
+}
+
+func parseOptionalInt(v string) (int, error) {
+	if v == "" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
 }
