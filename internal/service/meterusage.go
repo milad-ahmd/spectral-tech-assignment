@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/milad/spectral/internal/domain"
@@ -56,23 +55,32 @@ func (s *MeterUsageService) ListReadingsPage(
 		}
 	}
 
-	offset, err := parseOffsetToken(pageSize, pageToken)
-	if err != nil {
-		return ListReadingsPageResult{}, err
-	}
 	if pageSize < 0 {
 		return ListReadingsPageResult{}, fmt.Errorf("%w: page_size must be >= 0", ErrInvalidPagination)
 	}
 	if pageSize > MaxPageSize {
 		return ListReadingsPageResult{}, fmt.Errorf("%w: page_size too large (max %d)", ErrInvalidPagination, MaxPageSize)
 	}
-
-	readings, err := s.repo.List(ctx, startInclusive, endExclusive)
+	cursor, err := parseCursorToken(pageSize, pageToken)
 	if err != nil {
 		return ListReadingsPageResult{}, err
 	}
-	if offset > len(readings) {
-		return ListReadingsPageResult{}, fmt.Errorf("%w: page_token out of range", ErrInvalidPagination)
+	effectiveStart := startInclusive
+	if cursor != nil && (effectiveStart == nil || cursor.After(*effectiveStart)) {
+		effectiveStart = cursor
+	}
+
+	readings, err := s.repo.List(ctx, effectiveStart, endExclusive)
+	if err != nil {
+		return ListReadingsPageResult{}, err
+	}
+	if cursor != nil {
+		// Cursor is exclusive: skip any reading at or before the cursor.
+		i := 0
+		for i < len(readings) && !readings[i].Time.After(*cursor) {
+			i++
+		}
+		readings = readings[i:]
 	}
 
 	// Unpaged behavior (backwards compatible): return everything.
@@ -86,37 +94,44 @@ func (s *MeterUsageService) ListReadingsPage(
 		}, nil
 	}
 
-	if offset == len(readings) {
+	if len(readings) == 0 {
 		return ListReadingsPageResult{
 			Readings:      nil,
 			NextPageToken: "",
 		}, nil
 	}
 
-	end := offset + pageSize
+	end := pageSize
 	if end > len(readings) {
 		end = len(readings)
 	}
+	page := readings[:end]
 	next := ""
 	if end < len(readings) {
-		next = strconv.Itoa(end)
+		next = page[len(page)-1].Time.UTC().Format(time.RFC3339Nano)
 	}
 	return ListReadingsPageResult{
-		Readings:      readings[offset:end],
+		Readings:      page,
 		NextPageToken: next,
 	}, nil
 }
 
-func parseOffsetToken(pageSize int, pageToken string) (int, error) {
+func parseCursorToken(pageSize int, pageToken string) (*time.Time, error) {
 	if pageToken == "" {
-		return 0, nil
+		return nil, nil
 	}
 	if pageSize <= 0 {
-		return 0, fmt.Errorf("%w: page_token requires page_size", ErrInvalidPagination)
+		return nil, fmt.Errorf("%w: page_token requires page_size", ErrInvalidPagination)
 	}
-	n, err := strconv.Atoi(pageToken)
-	if err != nil || n < 0 {
-		return 0, fmt.Errorf("%w: invalid page_token", ErrInvalidPagination)
+	t, err := time.Parse(time.RFC3339, pageToken)
+	if err != nil {
+		// allow nano timestamps too (RFC3339Nano is a superset)
+		t2, err2 := time.Parse(time.RFC3339Nano, pageToken)
+		if err2 != nil {
+			return nil, fmt.Errorf("%w: invalid page_token", ErrInvalidPagination)
+		}
+		t = t2
 	}
-	return n, nil
+	tt := t.UTC()
+	return &tt, nil
 }

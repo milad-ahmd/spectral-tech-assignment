@@ -73,6 +73,20 @@ func TestHTTP_ListReadings_InvalidStart(t *testing.T) {
 	if got, want := rr.Code, http.StatusBadRequest; got != want {
 		t.Fatalf("status=%d want %d", got, want)
 	}
+
+	var body apiErrorJSON
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if body.Code != "invalid_argument" {
+		t.Fatalf("code=%q want %q", body.Code, "invalid_argument")
+	}
+	if body.Message == "" {
+		t.Fatalf("expected non-empty message")
+	}
+	if body.RequestID == "" {
+		t.Fatalf("expected requestId to be set")
+	}
 }
 
 func TestHTTP_ListReadings_MapsUpstreamInvalidArgument(t *testing.T) {
@@ -108,7 +122,7 @@ func TestHTTP_ListReadings_PageTokenRequiresPageSize(t *testing.T) {
 
 	srv := New(&fakeClient{})
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/readings?page_token=10", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/readings?page_token=2019-01-01T00:00:00Z", nil)
 	srv.ServeHTTP(rr, req)
 
 	if got, want := rr.Code, http.StatusBadRequest; got != want {
@@ -132,5 +146,31 @@ func TestHTTP_Index(t *testing.T) {
 	}
 	if body := rr.Body.String(); body == "" {
 		t.Fatalf("expected body")
+	}
+}
+
+func TestHTTP_PanicRecovery_ReturnsInternalErrorForAPI(t *testing.T) {
+	t.Parallel()
+
+	srv := New(&fakeClient{})
+	srv.mux.HandleFunc("/api/panic", func(http.ResponseWriter, *http.Request) { panic("boom") })
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/panic", nil)
+	srv.ServeHTTP(rr, req)
+
+	if got, want := rr.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("status=%d want %d", got, want)
+	}
+
+	var body apiErrorJSON
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if body.Code != "internal_error" {
+		t.Fatalf("code=%q want %q", body.Code, "internal_error")
+	}
+	if body.RequestID == "" {
+		t.Fatalf("expected requestId to be set")
 	}
 }

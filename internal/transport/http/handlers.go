@@ -6,10 +6,13 @@ import (
 	"encoding/hex"
 	"log"
 	"net/http"
+	"runtime/debug"
 	"strconv"
+	"strings"
 	"time"
 
 	meterusagev1 "github.com/milad/spectral/gen/go/proto/meterusage/v1"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -30,27 +33,48 @@ func New(client MeterUsageClient) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Keep health checks quiet.
-	if r.URL.Path == "/healthz" {
-		s.mux.ServeHTTP(w, r)
-		return
-	}
-
 	start := time.Now()
 	reqID := newRequestID()
 
 	w.Header().Set("X-Request-Id", reqID)
 	rr := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
-	s.mux.ServeHTTP(rr, r)
+	defer func() {
+		if rec := recover(); rec != nil {
+			rr.status = http.StatusInternalServerError
 
-	log.Printf("%s %s -> %d (%s) req_id=%s",
-		r.Method, r.URL.Path, rr.status, time.Since(start).Truncate(time.Millisecond), reqID,
-	)
+			// Best-effort response. If headers/body were already written, we can
+			// only log.
+			if !rr.wroteHeader {
+				if strings.HasPrefix(r.URL.Path, "/api") {
+					writeAPIError(rr, http.StatusInternalServerError, "internal_error", "internal error")
+				} else {
+					http.Error(rr, "internal error", http.StatusInternalServerError)
+				}
+			}
+
+			log.Printf("panic handling %s %s req_id=%s: %v\n%s",
+				r.Method, r.URL.Path, reqID, rec, debug.Stack(),
+			)
+		}
+
+		dur := time.Since(start)
+		observeHTTPRequest(r, rr.status, dur)
+
+		// Keep health checks + metrics endpoint quiet.
+		if r.URL.Path != "/healthz" && r.URL.Path != "/metrics" {
+			log.Printf("%s %s -> %d (%s) req_id=%s",
+				r.Method, r.URL.Path, rr.status, dur.Truncate(time.Millisecond), reqID,
+			)
+		}
+	}()
+
+	s.mux.ServeHTTP(rr, r)
 }
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("/api/readings", s.handleListReadings)
 	s.mux.HandleFunc("/healthz", s.handleHealthz)
+	s.mux.Handle("/metrics", promhttp.Handler())
 	s.mux.HandleFunc("/", s.handleIndex)
 }
 
@@ -109,21 +133,29 @@ func (s *Server) handleListReadings(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+	grpcStart := time.Now()
 	resp, err := s.client.ListReadings(ctx, req)
+	grpcDur := time.Since(grpcStart)
 	if err != nil {
+		code := codes.Unknown.String()
 		if st, ok := status.FromError(err); ok {
+			code = st.Code().String()
 			if st.Code() == codes.InvalidArgument {
+				observeUpstreamGRPC("ListReadings", code, grpcDur)
 				writeAPIError(w, http.StatusBadRequest, "invalid_argument", st.Message())
 				return
 			}
 			if st.Code() == codes.DeadlineExceeded {
+				observeUpstreamGRPC("ListReadings", code, grpcDur)
 				writeAPIError(w, http.StatusGatewayTimeout, "upstream_timeout", "upstream timeout")
 				return
 			}
 		}
+		observeUpstreamGRPC("ListReadings", code, grpcDur)
 		writeAPIError(w, http.StatusBadGateway, "upstream_error", "upstream error")
 		return
 	}
+	observeUpstreamGRPC("ListReadings", codes.OK.String(), grpcDur)
 
 	out := make([]readingJSON, 0, len(resp.GetReadings()))
 	for _, rr := range resp.GetReadings() {
@@ -179,12 +211,21 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 type statusRecorder struct {
 	http.ResponseWriter
-	status int
+	status      int
+	wroteHeader bool
 }
 
 func (r *statusRecorder) WriteHeader(status int) {
 	r.status = status
+	r.wroteHeader = true
 	r.ResponseWriter.WriteHeader(status)
+}
+
+func (r *statusRecorder) Write(p []byte) (int, error) {
+	if !r.wroteHeader {
+		r.WriteHeader(http.StatusOK)
+	}
+	return r.ResponseWriter.Write(p)
 }
 
 func newRequestID() string {

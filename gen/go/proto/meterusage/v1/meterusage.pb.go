@@ -29,8 +29,8 @@ type ListReadingsRequest struct {
 	// Exclusive end time filter. If unset, ends at the latest reading.
 	End *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=end,proto3" json:"end,omitempty"`
 	// Pagination. If page_size is 0, the server may return all readings in-range.
-	// If page_size is set, page_token is an offset (as a decimal string) into the
-	// filtered result set.
+	// If page_size is set, page_token is a cursor (RFC3339 timestamp) and the
+	// next page starts strictly after that timestamp.
 	PageSize      int32  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	PageToken     string `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields

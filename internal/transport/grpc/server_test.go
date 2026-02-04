@@ -152,6 +152,9 @@ func TestServer_ListReadings_Pagination(t *testing.T) {
 	if got, want := len(resp2.Readings), 1; got != want {
 		t.Fatalf("len(readings)=%d want %d", got, want)
 	}
+	if got, want := resp2.Readings[0].Time.AsTime(), base.Add(45*time.Minute); !got.Equal(want) {
+		t.Fatalf("time=%s want %s", got, want)
+	}
 	if resp2.NextPageToken != "" {
 		t.Fatalf("expected empty next page token, got %q", resp2.NextPageToken)
 	}

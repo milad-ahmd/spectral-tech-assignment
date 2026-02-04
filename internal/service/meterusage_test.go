@@ -28,7 +28,7 @@ func TestMeterUsageService_RejectsInvalidRange(t *testing.T) {
 	}
 }
 
-func TestMeterUsageService_Pagination_OffsetToken(t *testing.T) {
+func TestMeterUsageService_Pagination_CursorToken(t *testing.T) {
 	t.Parallel()
 
 	base := time.Date(2019, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -56,6 +56,9 @@ func TestMeterUsageService_Pagination_OffsetToken(t *testing.T) {
 	}
 	if got, want := len(res2.Readings), 1; got != want {
 		t.Fatalf("len=%d want %d", got, want)
+	}
+	if got, want := res2.Readings[0].Time, base.Add(45*time.Minute); !got.Equal(want) {
+		t.Fatalf("time=%s want %s", got, want)
 	}
 	if res2.NextPageToken != "" {
 		t.Fatalf("expected final page token to be empty, got %q", res2.NextPageToken)
