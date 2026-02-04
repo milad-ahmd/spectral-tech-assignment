@@ -1,0 +1,15 @@
+.DS_Store
+bin/
+dist/
+.tools/
+.idea/
+.vscode/
+
+# Go
+*.test
+*.out
+coverage.out
+
+# Generated
+gen/
+

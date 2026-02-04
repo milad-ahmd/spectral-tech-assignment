@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package meterusage.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/milad/spectral/gen/go/proto/meterusage/v1;meterusagev1";
+
+service MeterUsageService {
+  // Lists time-series readings, optionally filtered by [start, end).
+  rpc ListReadings(ListReadingsRequest) returns (ListReadingsResponse) {}
+}
+
+message ListReadingsRequest {
+  // Inclusive start time filter. If unset, starts from the earliest reading.
+  google.protobuf.Timestamp start = 1;
+  // Exclusive end time filter. If unset, ends at the latest reading.
+  google.protobuf.Timestamp end = 2;
+}
+
+message ListReadingsResponse {
+  repeated Reading readings = 1;
+}
+
+message Reading {
+  google.protobuf.Timestamp time = 1;
+  double meter_usage = 2;
+}
+
