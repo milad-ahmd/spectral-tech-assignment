@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	httpserver "github.com/milad/spectral/internal/transport/http"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 func main() {
@@ -32,6 +34,10 @@ func main() {
 		log.Fatalf("dial gRPC %q: %v", *grpcAddr, err)
 	}
 	defer conn.Close()
+
+	// Reduce docker-compose race: wait a bit for gRPC to be ready.
+	wait := envDurationMs("GRPC_WAIT_TIMEOUT_MS", 20_000) // 20s default
+	waitForGRPC(ctx, conn, wait)
 
 	client := meterusagev1.NewMeterUsageServiceClient(conn)
 	srv := httpserver.New(client)
@@ -69,4 +75,53 @@ func envOr(k, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func envDurationMs(k string, fallbackMs int) time.Duration {
+	v := os.Getenv(k)
+	if v == "" {
+		return time.Duration(fallbackMs) * time.Millisecond
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return time.Duration(fallbackMs) * time.Millisecond
+	}
+	return time.Duration(n) * time.Millisecond
+}
+
+func waitForGRPC(ctx context.Context, conn *grpc.ClientConn, maxWait time.Duration) {
+	if maxWait <= 0 {
+		return
+	}
+
+	hc := healthpb.NewHealthClient(conn)
+	deadline := time.Now().Add(maxWait)
+
+	backoff := 100 * time.Millisecond
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		reqCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		_, err := hc.Check(reqCtx, &healthpb.HealthCheckRequest{})
+		cancel()
+		if err == nil {
+			log.Printf("gRPC is ready")
+			return
+		}
+
+		if time.Now().After(deadline) {
+			log.Printf("warning: gRPC not ready after %s; continuing anyway (%v)", maxWait, err)
+			return
+		}
+
+		time.Sleep(backoff)
+		if backoff < 1*time.Second {
+			backoff *= 2
+			if backoff > 1*time.Second {
+				backoff = 1 * time.Second
+			}
+		}
+	}
 }

@@ -29,6 +29,12 @@ func New(client MeterUsageClient) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Keep health checks quiet.
+	if r.URL.Path == "/healthz" {
+		s.mux.ServeHTTP(w, r)
+		return
+	}
+
 	start := time.Now()
 	reqID := newRequestID()
 
