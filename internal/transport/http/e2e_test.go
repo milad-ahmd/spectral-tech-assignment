@@ -39,8 +39,7 @@ func TestHTTP_ToGRPC_EndToEnd(t *testing.T) {
 	go func() { _ = g.Serve(lis) }()
 	t.Cleanup(g.Stop)
 
-	ctx := context.Background()
-	conn, err := grpc.DialContext(ctx, "passthrough:///bufnet",
+	conn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
