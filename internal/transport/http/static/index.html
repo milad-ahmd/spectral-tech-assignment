@@ -334,7 +334,8 @@
 
       function setDefault2019() {
         if (!elStart.value) elStart.value = '2019-01-01T00:00:00';
-        if (!elEnd.value) elEnd.value = '2019-01-02T00:00:00';
+        // The sample CSV spans (roughly) January 2019; default to a month so paging is visible.
+        if (!elEnd.value) elEnd.value = '2019-02-01T00:00:00';
       }
 
       function buildQuery(token) {
