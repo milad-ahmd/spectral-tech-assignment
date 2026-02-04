@@ -23,6 +23,12 @@ jobs:
         run: |
           go vet ./...
 
+      - name: golangci-lint (staticcheck)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --config=.golangci.yml
+
       - name: tests
         run: |
           go test ./...
