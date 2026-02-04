@@ -10,7 +10,7 @@ run-http:
 	go run ./cmd/httpserver -addr :8080 -grpc 127.0.0.1:9090
 
 docker-up:
-	docker compose up --build
+	docker compose up --build --pull=missing
 
 docker-down:
 	docker compose down --remove-orphans
